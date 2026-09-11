@@ -1,0 +1,267 @@
+# Circuit Analysis Tool — Design Spec
+
+## Overview
+
+A web-based circuit analysis tool for students. Solves symbolic circuit problems including dependent sources, nodal analysis, and mesh analysis. Priority is UX — minimal actions, no palette windows, no drag-drop hell. Designed around how students actually sketch circuits on paper.
+
+---
+
+## Scope
+
+Current scope: resistive circuits only (DC, symbolic). Capacitors and inductors excluded for now — can be added in a later phase without breaking existing architecture.
+
+- Lines define topology first. Components populate lines after.
+- Every interaction happens on the canvas. No sidebar jumping.
+- Variable system is C-like — define first, use after.
+- Solver handles the math. Student handles the setup.
+
+---
+
+## Canvas & Grid
+
+- Grid-based canvas.
+- All lines and components snap to grid automatically.
+- Lines are the primary drawing primitive — everything else attaches to them.
+
+---
+
+## Drawing Interactions
+
+### Lines (Branches)
+Lines are drawn in mode 0. Two methods available simultaneously:
+
+Click-drag — hold and drag for long lines. Snaps to grid throughout. Automatically enforces horizontal/vertical, no diagonal accidents. Release to place.
+
+Click-click — click start point, click end point. Snaps to nearest: symbol terminal > node > line endpoint > grid (priority order). For precise short connections.
+
+Both methods coexist — use whichever fits the situation.
+
+Right double-click drag — erase selection for lines/segments specifically. Does not affect components. Separate from general erase (right-click drag).
+
+Mid-draw controls:
+- Left arrow — undo last placed segment while still drawing.
+- Right arrow — redo reversed segment while still drawing.
+- These only apply mid-draw. Global undo is Ctrl+Z.
+
+Mode reset: press 1 to return to neutral/select mode from any key mode. Escape also works as alias.
+
+### Placing Components
+- Select component type by keyboard shortcut, then click a line.
+- Component snaps onto the line, splitting it at that point.
+- Symbol auto-orients to match line direction (horizontal/vertical). No manual rotation.
+
+### Keyboard Shortcuts
+
+| Key | Action | Behavior |
+|-----|--------|----------|
+| 0 | Line mode | Draw branches on the grid. Click-drag for long lines, click-click for precise connections. |
+| 1 | Select / neutral mode | Returns to neutral from any active key mode. Escape also works. |
+| R | Resistor | Click a line to place. |
+| S | Independent source | Click a line to place (V or I, set in right double-click). |
+| D | Dependent source | Click a line to place (type set in right double-click: VCVS, CCCS, VCCS, CCVS). |
+| C | Current symbol | Click a branch to place directional arrow. Right-click placed symbol to reverse direction. |
+| V | Voltage segment / branch | Drag over area or multiple branches to define a voltage segment (named, usable as variable). Click a single branch for a simple voltage label. Right-click to reverse +/- polarity. |
+| G | Ground | Click a node to assign as ground (0V reference). Only one ground allowed — reassigning moves it. |
+| L | Loop current | Two modes: (1) Drag over area — auto-detects loop branches within region, applied if exactly one valid loop found. (2) Manual — press L, click each branch in sequence, close by clicking starting branch again. Auto-detect runs first; falls back to manual prompt if topology is ambiguous. |
+| N | Node | Click to explicitly define/name a node (for nodal analysis). Drag to define a supernode spanning multiple nodes. Default nodes auto-exist where branches meet, but N lets you explicitly label and control them. |
+
+### Notes
+- Right-click on placed C symbol reverses current direction.
+- Right-click on placed V segment reverses +/- polarity.
+
+### Erasing
+- Right-click drag — draws an erase selection region. Everything inside is deleted.
+- No mode switching required.
+
+### Undo / Redo
+- Ctrl+Z / Ctrl+Y.
+- Full history of actions.
+
+---
+
+## Inspection & Display
+
+### Single Left Click — Peek
+- Click any component, node, or branch segment to inspect it.
+- Shows name and current value in a small non-blocking tooltip (no popup, no edit mode).
+- Dismisses on click elsewhere.
+- Works on: symbols, nodes, branch segments, region-defined entities, loop current arrows.
+
+### Named Variable Toggle
+- Global toggle button on canvas (or keyboard shortcut TBD).
+- When ON: all named variables display their values as inline annotations directly on the canvas, next to their respective component/node/branch.
+- When OFF: canvas is clean, no labels shown unless hovered/clicked.
+- Useful for reviewing full solved state at a glance without clicking around.
+
+---
+
+## Component Value & Naming
+
+- Right double-click any component — opens inline popup (no separate window).
+- Set value (numeric or symbolic expression).
+- Set name/label.
+- Available pre-defined variables appear as dropdown choices in value field.
+- Expressions support arithmetic (e.g. `2 * V_x`, `3 * I_1`).
+
+---
+
+## Variable System
+
+### Defining Variables
+Two ways to define a named variable:
+
+1. Place a dependent source (D), right double-click it — set its controlling variable name (e.g. `V_x`). Then click the controlling component to link them explicitly. No name-matching ambiguity.
+
+2. Left-click drag starting from outside any component — region selection. Declare the selected region as a named entity. Options after selection:
+   - Name it (registers as a variable accessible elsewhere)
+   - Declare type: node voltage, supernode, branch current, voltage segment
+   - Calculate/display value at that point
+   - Use as controlling variable for dependent sources
+
+### Variable Scoping
+- C-like: variable must be defined before it appears as a choice.
+- Undefined names never appear in dropdowns — prevents typos silently breaking the solver.
+- All variables (node voltages, loop currents, branch currents, dependent source controllers) share one unified pool.
+
+---
+
+## Analysis Methods
+
+### Nodal Analysis
+- Nodes are automatically detected where branches meet.
+- Supernodes: left-drag to select a region spanning two nodes and a voltage source between them. Name it. Solver applies supernode constraint automatically.
+- Node voltages are named variables, accessible as choices.
+
+### Mesh Analysis
+- Press a key (TBD) and click inside an enclosed loop — places a loop current arrow symbol.
+- Name the loop current (e.g. `I_1`). Registers as a variable.
+- Multiple loop currents coexist. Solver builds KVL equations per loop.
+- Regular current direction markers (I key) on branches show assumed current direction. Negative result = opposite direction.
+
+### Coexistence
+- Both methods can be used on the same circuit simultaneously.
+- All variables from both methods feed into one unified equation system.
+- Solver detects method per region and applies appropriate constraints.
+
+---
+
+## Source Modes
+
+Each independent source has a mode toggle in its right double-click window:
+
+| Mode | Behavior | Allowed for |
+|------|----------|-------------|
+| Normal | Active, uses set value | V source, I source |
+| Short circuit | Replaced by wire (0V) | V source only |
+| Open circuit | Branch removed (0A) | I source only |
+
+Physically nonsensical options are grayed out — current source cannot short, voltage source cannot open.
+
+### Use Cases Unlocked
+- Thevenin/Norton: kill sources to find R_th, reactivate for V_th or I_sc
+- Superposition: run circuit multiple times with different sources active/killed, combine results manually
+- Advanced loop analysis with controlled source deactivation
+
+---
+
+## Dependent Sources
+
+- Four types: VCVS, CCCS, VCCS, CCVS.
+- Placed with D key on a line.
+- Right double-click: set expression using pre-defined variables from dropdown.
+- Controlling component linked by explicit click after naming — unambiguous for solver.
+
+---
+
+## Solver
+
+### Backend
+- Modified Nodal Analysis (MNA) for equation generation.
+- Sympy for symbolic algebra — no arithmetic errors, handles parametric values.
+
+### Method Priority
+1. Nodal analysis (default)
+2. Supernode constraints added when detected
+3. Mesh equations added for defined loop currents
+4. Dependent source constraint equations added last
+
+### Output
+- Solved values for all named variables.
+- Method(s) used shown to user.
+- If unsolvable, clear error message stating why (underdefined, conflicting constraints, etc.)
+
+---
+
+## Visual Design
+
+No toggles. Everything meaningful is always visible.
+
+| Element | Color / Style |
+|---------|--------------|
+| Background | White |
+| Grid | Light grey |
+| Lines, branches, components | Black |
+| Auto-nodes (branch intersections) | Black dots |
+| Defined nodes (N key) | Green dots |
+| Supernode region | Pale blue filled rectangle behind area |
+| Defined voltage segments (V key) | Pale pink filled rectangle behind area |
+| Loop current arrows | Blue circular arrows, variable name centered inside |
+| Passive value labels | Small grey text, always visible near named entity |
+
+Loop current naming — default i_n (auto-incrementing: i_1, i_2...). Name is required before placement confirms. Press L, draw/select loop, prompt appears pre-filled with i_n default, confirm, arrow renders.
+
+---
+
+## Rendering
+
+- Components render as classic circuit symbols (zigzag resistor, circle source, diamond dependent source, etc.)
+- Symbols are visually placed within the bounding region defined by the branch they sit on.
+- Node dots auto-appear where 3+ branches meet.
+- Ground symbol available as a special terminal.
+
+---
+
+## Build Roadmap
+
+### Phase 1 — Canvas & Drawing
+- Grid, line drawing, snap behavior
+- Erase, undo/redo
+- No components yet — just lines and nodes
+
+### Phase 2 — Components
+- Keyboard placement on lines
+- Classic symbol rendering
+- Auto-orientation
+- Right double-click value/name editing
+
+### Phase 3 — Variable System
+- Region selection and declaration
+- Variable pool and dropdown system
+- Dependent source linking
+
+### Phase 4 — Solver Integration
+- Netlist extraction from canvas
+- MNA equation generation
+- Sympy solve
+- Output display
+
+### Phase 5 — Mesh Analysis
+- Loop current placement
+- KVL equation generation
+- Unified solver with both methods
+
+### Phase 6 — Polish
+- Error messages
+- Edge case handling
+- UI refinement
+- Performance
+
+---
+
+## Resolved Decisions
+
+1. Output — final answers shown by default. Full equation system accessible optionally (expandable). In full solution view, clicking a value highlights the corresponding circuit element in a yellow circle. Bidirectional referencing between solution and canvas.
+
+2. Platform — website (HTML/CSS/JS). Desktop only for now. No app, no Electron, no build complexity.
+
+3. Named variable display — press P to toggle all passive value labels on/off. Key shortcut legend is always visible on screen (e.g. R-resistor, S-source etc.) — serves as onboarding and persistent reference. No help menu needed.
