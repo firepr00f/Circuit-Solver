@@ -1,0 +1,1458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Tool</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#fff;font-family:'Courier New',monospace;overflow:hidden;user-select:none;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+  #topbar{height:36px;background:#fff;border-bottom:1px solid #d0d0d0;display:flex;align-items:center;padding:0 16px;gap:20px;z-index:10;}
+  #topbar .title{font-size:13px;font-weight:700;letter-spacing:.08em;color:#111;text-transform:uppercase;}
+  #mode-indicator{font-size:11px;color:#888;}
+  #mode-indicator span{color:#111;font-weight:700;}
+  #status{font-size:11px;color:#aaa;flex:1;}
+  #canvas-wrap{flex:1;position:relative;overflow:hidden;}
+  #canvas{display:block;}
+  #canvas.mode-select{cursor:default;}
+  #canvas.mode-line,#canvas.mode-rect{cursor:crosshair;}
+  #canvas.mode-comp{cursor:cell;}
+  #legend{position:fixed;bottom:0;left:0;right:0;height:32px;background:#fff;border-top:1px solid #d0d0d0;display:flex;align-items:center;padding:0 14px;z-index:10;overflow:hidden;}
+  .li{display:flex;align-items:center;gap:4px;margin-right:14px;white-space:nowrap;}
+  .k{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:17px;padding:0 3px;background:#f4f4f4;border:1px solid #ccc;border-radius:3px;font-size:10px;font-weight:700;color:#333;font-family:'Courier New',monospace;}
+  .k.active{background:#111;border-color:#111;color:#fff;}
+  .lbl{font-size:10px;color:#888;}
+  .sep{width:1px;height:16px;background:#ddd;margin-right:14px;}
+  #popup{display:none;position:fixed;background:#fff;border:1.5px solid #111;font-family:'Courier New',monospace;font-size:11px;padding:12px 14px;z-index:200;min-width:200px;box-shadow:3px 3px 0 #111;}
+  #popup-type{font-size:10px;letter-spacing:.1em;color:#888;text-transform:uppercase;margin-bottom:10px;}
+  .pop-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+  .pop-row label{width:48px;color:#555;font-size:10px;flex-shrink:0;}
+  .pop-row input,.pop-row select{flex:1;border:1px solid #ccc;font-family:'Courier New',monospace;font-size:11px;padding:3px 5px;outline:none;background:#fff;}
+  .pop-row input:focus,.pop-row select:focus{border-color:#111;}
+  .pop-btns{display:flex;gap:8px;margin-top:10px;}
+  .pop-btns button{flex:1;padding:4px;font-family:'Courier New',monospace;font-size:10px;cursor:pointer;border:1px solid #111;background:#fff;letter-spacing:.05em;text-transform:uppercase;}
+  .pop-btns button:hover{background:#111;color:#fff;}
+  #pop-del{border-color:#c00;color:#c00;}
+  #pop-del:hover{background:#c00;color:#fff;border-color:#c00;}
+  #calc-btn{padding:2px 10px;font-family:'Courier New',monospace;font-size:10px;cursor:pointer;border:1px solid #111;background:#fff;letter-spacing:.05em;text-transform:uppercase;height:22px;}
+  #calc-btn:hover{background:#111;color:#fff;}
+  #result-panel{display:none;background:#fafafa;border-top:1px solid #d0d0d0;border-bottom:1px solid #d0d0d0;padding:9px 20px;font-family:'Courier New',monospace;font-size:16.5px;max-height:300px;overflow-y:auto;position:relative;}
+  #result-panel.err{background:#fff5f5;border-color:#f99;}
+  #result-panel .rclose{position:absolute;top:6px;right:14px;cursor:pointer;font-size:19px;color:#aaa;border:none;background:none;font-family:'Courier New',monospace;}
+  #result-panel .rclose:hover{color:#111;}
+  .rv{display:inline-block;margin-right:24px;color:#111;}
+  .rv .rk{color:#888;font-size:15px;}
+  .rv .rk.kb{color:#333;padding:1px 5px;border-radius:2px;}
+  .rv .rsub{color:#bbb;font-size:12px;}
+  .rsec{font-size:15px;color:#888;letter-spacing:.08em;text-transform:uppercase;margin:6px 0 3px;}
+  .rerr{color:#c00;font-weight:700;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="title">Circuit Tool</div>
+    <div id="mode-indicator">mode: <span id="mode-text">SELECT</span></div>
+    <div id="status"></div>
+    <button id="calc-btn">&#9654; Calculate</button>
+  </div>
+  <div id="result-panel"><button class="rclose" id="result-close">✕</button><div id="result-body"></div></div>
+  <div id="canvas-wrap"><canvas id="canvas"></canvas></div>
+  <div id="legend">
+    <div class="li"><span class="k" id="k-1">1</span><span class="lbl">select</span></div>
+    <div class="li"><span class="k" id="k-0">0</span><span class="lbl">line</span></div>
+    <div class="li"><span class="k" id="k-9">9</span><span class="lbl">rect</span></div>
+    <div class="sep"></div>
+    <div class="li"><span class="k" id="k-r">R</span><span class="lbl">resistor</span></div>
+    <div class="li"><span class="k" id="k-s">S</span><span class="lbl">source</span></div>
+    <div class="li"><span class="k" id="k-d">D</span><span class="lbl">dep.src</span></div>
+    <div class="li"><span class="k" id="k-i">I</span><span class="lbl">current</span></div>
+    <div class="li"><span class="k" id="k-g">G</span><span class="lbl">ground</span></div>
+    <div class="li"><span class="k" id="k-n">N</span><span class="lbl">node</span></div>
+    <div class="sep"></div>
+    <div class="li"><span class="k">P</span><span class="lbl">labels</span></div>
+    <div class="sep"></div>
+    <div class="li"><span class="k">^Z</span><span class="lbl">undo</span></div>
+    <div class="li"><span class="k">^Y</span><span class="lbl">redo</span></div>
+    <div class="sep"></div>
+    <div class="li"><span class="lbl" style="color:#bbb">R-drag: erase | R-dbl: edit | L-dbl src/I: flip</span></div>
+  </div>
+</div>
+<div id="popup">
+  <div id="popup-type"></div>
+  <div class="pop-row"><label>name</label><input id="pop-name" type="text" autocomplete="off"></div>
+  <div class="pop-row" id="pop-val-row"><label>value</label><input id="pop-value" type="text" autocomplete="off"></div>
+  <div class="pop-row" id="pop-sub-row" style="display:none"><label>type</label><select id="pop-sub"></select></div>
+  <div class="pop-row" id="pop-mode-row" style="display:none"><label>mode</label>
+    <select id="pop-mode">
+      <option value="normal">normal</option>
+      <option value="short">short circuit</option>
+      <option value="open">open circuit</option>
+    </select>
+  </div>
+  <div class="pop-row" id="pop-ctrl-row" style="display:none"><label>ctrl</label><select id="pop-ctrl" style="font-size:10px"></select></div>
+  <div class="pop-btns"><button id="pop-ok">ok</button><button id="pop-del">delete</button></div>
+</div>
+<script>
+const GRID=24, DRAG_TH=5, EPS=0.5;
+const COMP_HL=GRID;  // fixed half-length = 1 grid cell each side → body = 2×2 grid square
+// Symbol geometry (fractions of halfLen)
+const R_W=0.72, R_H=0.3, R_ZIG=6;  // resistor: zigzag half-width, amplitude, peak count
+const S_R=0.84;                    // source circle radius (2× the old 0.42)
+const D_W=0.84, D_H=0.80;          // dep. source diamond half-width / half-height (2× the old 0.48/0.40,
+                                   // D_W held at S_R so both source symbols keep the same lead stub)
+const DBG_GAP=true; // set false to silence gap debug logs
+const COMP_KEYS=['r','s','d','i','g','n'];
+const COMP_NAMES={R:'RESISTOR',S:'SOURCE',D:'DEP.SOURCE',I:'CURRENT',G:'GROUND',N:'NODE'};
+const LINE_SPLIT=['R','S','D'];
+const NODE_PLACE=['G','N'];
+
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const wrap=document.getElementById('canvas-wrap');
+const modeText=document.getElementById('mode-text');
+const statusEl=document.getElementById('status');
+
+let lines=[], components=[], compId=0;
+let undoStack=[], redoStack=[];
+let mode='select', activeComp='R';
+const compHL=()=>COMP_HL;
+
+let lineState='idle',lineStart=null,linePreview=null,mouseDownPos=null,clickChain=[];
+let rectState='idle',rectStart=null,rectPreview=null;
+let snodeStart=null; // node pending as supernode + terminal
+let erasing=false,eraseStart=null,eraseRect=null;
+let compHover=null;
+let lastMousePos={x:0,y:0};
+let lastRUp={time:0,x:0,y:0};
+let popComp=null;
+
+function resize(){canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;render();}
+window.addEventListener('resize',resize);resize();
+
+const snapV=v=>Math.round(v/GRID)*GRID;
+const snapPt=(x,y)=>({x:snapV(x),y:snapV(y)});
+const cpos=e=>{const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+const ptEq=(ax,ay,bx,by)=>Math.abs(ax-bx)<EPS&&Math.abs(ay-by)<EPS;
+const zeroSeg=s=>ptEq(s.x1,s.y1,s.x2,s.y2);
+const setStat=s=>statusEl.textContent=s;
+function snapHV(a,b){const dx=b.x-a.x,dy=b.y-a.y;return Math.abs(dx)>=Math.abs(dy)?{x1:a.x,y1:a.y,x2:b.x,y2:a.y}:{x1:a.x,y1:a.y,x2:a.x,y2:b.y};}
+// Snap to grid, but redirect to nearest terminal if the point is inside any component's
+// 2D forbidden zone (strictly between terminals along gap axis, within 1 grid perpendicularly).
+// This blocks mid-component connections from ANY direction — collinear or perpendicular.
+function snapGap(px,py){
+  const s=snapPt(px,py);
+  for(const c of components){
+    if(!LINE_SPLIT.includes(c.type))continue;
+    const hl=c.halfLen||COMP_HL;
+    // Rotate snap point into component local coordinates (gap axis = local X)
+    const dx=s.x-c.cx,dy=s.y-c.cy;
+    const cos=Math.cos(-c.angle),sin=Math.sin(-c.angle);
+    const lx=dx*cos-dy*sin; // along gap (−hl=terminal1, +hl=terminal2)
+    const ly=dx*sin+dy*cos; // perpendicular to gap
+    // Forbidden zone: strictly inside gap, within one grid cell perpendicularly
+    if(Math.abs(lx)<hl-EPS&&Math.abs(ly)<GRID){
+      const d1=Math.hypot(s.x-c.x1,s.y-c.y1),d2=Math.hypot(s.x-c.x2,s.y-c.y2);
+      if(DBG_GAP)console.log(`[snapGap] (${s.x},${s.y}) inside ${c.name} zone → redirected to ${d1<=d2?'T1':'T2'}`);
+      return d1<=d2?{x:c.x1,y:c.y1}:{x:c.x2,y:c.y2};
+    }
+  }
+  return s;
+}
+// Clip an H/V segment so its endpoint doesn't land inside (or pass through) any
+// component's 2D forbidden zone. Walks from start toward end in GRID steps; stops
+// at the last grid point that is NOT in the forbidden zone.
+// This is needed for drag mode because snapHV discards the axis fix that snapGap makes.
+function clipToSafe(x1,y1,x2,y2){
+  const isV=Math.abs(x2-x1)<EPS,isH=Math.abs(y2-y1)<EPS;
+  if(!isV&&!isH)return{x1,y1,x2,y2}; // diagonal — skip
+  const forbidden=(x,y)=>{
+    for(const c of components){
+      if(!LINE_SPLIT.includes(c.type))continue;
+      const hl=c.halfLen||COMP_HL;
+      const dx=x-c.cx,dy=y-c.cy;
+      const cos=Math.cos(-c.angle),sin=Math.sin(-c.angle);
+      const lx=dx*cos-dy*sin,ly=dx*sin+dy*cos;
+      if(Math.abs(lx)<hl-EPS&&Math.abs(ly)<GRID)return true;
+    }
+    return false;
+  };
+  if(isV){
+    const step=y2>y1?GRID:-GRID;
+    let safeY=y1;
+    for(let y=y1+step;y2>y1?y<=y2+EPS:y>=y2-EPS;y+=step){
+      if(forbidden(x1,y))break;
+      safeY=y;
+    }
+    return{x1,y1,x2:x1,y2:safeY};
+  } else {
+    const step=x2>x1?GRID:-GRID;
+    let safeX=x1;
+    for(let x=x1+step;x2>x1?x<=x2+EPS:x>=x2-EPS;x+=step){
+      if(forbidden(x,y1))break;
+      safeX=x;
+    }
+    return{x1,y1,x2:safeX,y2:y1};
+  }
+}
+function ptSegDist(px,py,seg){
+  const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,lsq=dx*dx+dy*dy;
+  if(lsq<EPS*EPS)return Math.hypot(px-seg.x1,py-seg.y1);
+  const t=Math.max(0,Math.min(1,((px-seg.x1)*dx+(py-seg.y1)*dy)/lsq));
+  return Math.hypot(px-(seg.x1+t*dx),py-(seg.y1+t*dy));
+}
+
+// ── Topology ──────────────────────────────────────────────────────────────────
+function strictlyOn(px,py,seg){
+  const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,lsq=dx*dx+dy*dy;
+  if(lsq<EPS*EPS)return false;
+  const cross=(px-seg.x1)*dy-(py-seg.y1)*dx;
+  if(Math.abs(cross)>EPS*Math.sqrt(lsq))return false;
+  const t=Math.abs(dx)>Math.abs(dy)?(px-seg.x1)/dx:(py-seg.y1)/dy;
+  return t>EPS/Math.sqrt(lsq)&&t<1-EPS/Math.sqrt(lsq);
+}
+function segIntersect(a,b){
+  const dx1=a.x2-a.x1,dy1=a.y2-a.y1,dx2=b.x2-b.x1,dy2=b.y2-b.y1,dn=dx1*dy2-dy1*dx2;
+  if(Math.abs(dn)<1e-10)return null;
+  const dx3=b.x1-a.x1,dy3=b.y1-a.y1;
+  const ta=(dx3*dy2-dy3*dx2)/dn,tb=(dx3*dy1-dy3*dx1)/dn;
+  if(ta<1e-9||ta>1-1e-9||tb<1e-9||tb>1-1e-9)return null;
+  return{x:a.x1+ta*dx1,y:a.y1+ta*dy1};
+}
+function splitAt(seg,pts){
+  const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,lsq=dx*dx+dy*dy;
+  if(lsq<EPS*EPS)return[];
+  const interior=pts.filter(p=>strictlyOn(p.x,p.y,seg)).map(p=>({x:p.x,y:p.y,t:Math.abs(dx)>Math.abs(dy)?(p.x-seg.x1)/dx:(p.y-seg.y1)/dy}));
+  const all=[{x:seg.x1,y:seg.y1,t:0},...interior,{x:seg.x2,y:seg.y2,t:1}].sort((a,b)=>a.t-b.t);
+  const uniq=[all[0]];
+  for(let i=1;i<all.length;i++)if(all[i].t>uniq[uniq.length-1].t+1e-9)uniq.push(all[i]);
+  const res=[];
+  for(let i=0;i<uniq.length-1;i++){const a=uniq[i],b=uniq[i+1];if(!ptEq(a.x,a.y,b.x,b.y))res.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y});}
+  return res;
+}
+function segEq(a,b){return(ptEq(a.x1,a.y1,b.x1,b.y1)&&ptEq(a.x2,a.y2,b.x2,b.y2))||(ptEq(a.x1,a.y1,b.x2,b.y2)&&ptEq(a.x2,a.y2,b.x1,b.y1));}
+
+// Block a piece if it is collinear with AND overlaps the interior of a component gap.
+// Uses interval overlap on the gap axis — more robust than midpoint check.
+function inCompGap(piece, _label, _silent){
+  const log=DBG_GAP&&!_silent;
+  const label=_label||`(${piece.x1.toFixed(1)},${piece.y1.toFixed(1)})→(${piece.x2.toFixed(1)},${piece.y2.toFixed(1)})`;
+  for(const c of components){
+    if(!LINE_SPLIT.includes(c.type))continue;
+    const gdx=c.x2-c.x1,gdy=c.y2-c.y1,glsq=gdx*gdx+gdy*gdy;
+    if(glsq<EPS*EPS){if(log)console.log(`[gap] piece ${label} vs ${c.name}: SKIP zero-length gap`);continue;}
+    // Both piece endpoints must be collinear with the gap axis
+    const cross1=(piece.x1-c.x1)*gdy-(piece.y1-c.y1)*gdx;
+    const cross2=(piece.x2-c.x1)*gdy-(piece.y2-c.y1)*gdx;
+    const colTol=EPS*Math.sqrt(glsq);
+    if(Math.abs(cross1)>colTol||Math.abs(cross2)>colTol){
+      if(log)console.log(`[gap] piece ${label} vs ${c.name}: not collinear (cross1=${cross1.toFixed(2)} cross2=${cross2.toFixed(2)} tol=${colTol.toFixed(2)})`);
+      continue;
+    }
+    // Project both piece endpoints onto gap [0..1]
+    const proj=(px,py)=>Math.abs(gdx)>Math.abs(gdy)?(px-c.x1)/gdx:(py-c.y1)/gdy;
+    const t1=proj(piece.x1,piece.y1), t2=proj(piece.x2,piece.y2);
+    const lo=Math.max(Math.min(t1,t2), 0);
+    const hi=Math.min(Math.max(t1,t2), 1);
+    const overlapTol=EPS/Math.sqrt(glsq);
+    const blocked=hi-lo>overlapTol;
+    if(log)console.log(`[gap] piece ${label} vs ${c.name} gap[(${c.x1.toFixed(1)},${c.y1.toFixed(1)})→(${c.x2.toFixed(1)},${c.y2.toFixed(1)})]: t1=${t1.toFixed(3)} t2=${t2.toFixed(3)} lo=${lo.toFixed(3)} hi=${hi.toFixed(3)} overlap=${(hi-lo).toFixed(4)} tol=${overlapTol.toFixed(4)} → ${blocked?'BLOCKED':'pass'}`);
+    if(blocked)return true;
+  }
+  return false;
+}
+
+// Post-pass: remove any line that ended up inside a component gap (belt-and-suspenders)
+function enforceGaps(){
+  if(!components.some(c=>LINE_SPLIT.includes(c.type)))return;
+  const before=lines.length;
+  lines=lines.filter(l=>{
+    if(!inCompGap(l,null,true))return true;
+    if(DBG_GAP)console.log(`[enforceGaps] ✗ scrubbed gap-violator (${l.x1.toFixed(1)},${l.y1.toFixed(1)})→(${l.x2.toFixed(1)},${l.y2.toFixed(1)})`);
+    return false;
+  });
+  if(DBG_GAP&&lines.length<before)console.log(`[enforceGaps] cleaned ${before-lines.length} violating line(s)`);
+}
+
+function topoAdd(nx1,ny1,nx2,ny2){
+  if(ptEq(nx1,ny1,nx2,ny2))return;
+  const ns={x1:nx1,y1:ny1,x2:nx2,y2:ny2};
+  const upd=[],spn=[];
+  for(const ex of lines){
+    const pe=[];
+    if(strictlyOn(nx1,ny1,ex))pe.push({x:nx1,y:ny1});
+    if(strictlyOn(nx2,ny2,ex))pe.push({x:nx2,y:ny2});
+    if(strictlyOn(ex.x1,ex.y1,ns))spn.push({x:ex.x1,y:ex.y1});
+    if(strictlyOn(ex.x2,ex.y2,ns))spn.push({x:ex.x2,y:ex.y2});
+    const ix=segIntersect(ns,ex);
+    if(ix){pe.push(ix);spn.push(ix);}
+    upd.push(...(pe.length?splitAt(ex,pe):[ex]));
+  }
+  // Also split at component terminal points
+  for(const c of components){
+    if(!LINE_SPLIT.includes(c.type))continue;
+    if(strictlyOn(c.x1,c.y1,ns))spn.push({x:c.x1,y:c.y1});
+    if(strictlyOn(c.x2,c.y2,ns))spn.push({x:c.x2,y:c.y2});
+  }
+  const pieces=splitAt(ns,spn);
+  const fin=pieces.length?pieces:[ns];
+  if(DBG_GAP&&components.some(c=>LINE_SPLIT.includes(c.type))){
+    console.log(`[topoAdd] seg (${nx1},${ny1})→(${nx2},${ny2}) → ${fin.length} piece(s), spn=[${spn.map(p=>`(${p.x.toFixed(1)},${p.y.toFixed(1)})`).join(',')}]`);
+    console.log(`[topoAdd] active gaps:`, components.filter(c=>LINE_SPLIT.includes(c.type)).map(c=>`${c.name}[(${c.x1.toFixed(1)},${c.y1.toFixed(1)})→(${c.x2.toFixed(1)},${c.y2.toFixed(1)})]`).join(' '));
+  }
+  // Discard pieces whose midpoint falls inside a component gap
+  for(const p of fin){
+    if(zeroSeg(p))continue;
+    const lbl=`(${p.x1.toFixed(1)},${p.y1.toFixed(1)})→(${p.x2.toFixed(1)},${p.y2.toFixed(1)})`;
+    if(inCompGap(p,lbl)){if(DBG_GAP)console.log(`[topoAdd] ✗ dropped piece ${lbl}`);continue;}
+    if(!upd.some(l=>segEq(l,p)))upd.push(p);
+    else if(DBG_GAP&&components.some(c=>LINE_SPLIT.includes(c.type)))console.log(`[topoAdd] ~ duplicate piece ${lbl}`);
+  }
+  lines=upd;
+  enforceGaps(); // belt-and-suspenders: scrub any line that slipped into a gap
+  pruneJunctionNodes(); // auto-delete N nodes that ended up at a 3+ branch junction
+}
+
+// ── Undo / Redo ───────────────────────────────────────────────────────────────
+function saveState(){undoStack.push(JSON.stringify({lines,components,compId}));redoStack=[];if(undoStack.length>200)undoStack.shift();}
+function applyState(s){const d=JSON.parse(s);lines=d.lines;components=d.components;compId=d.compId;}
+function undo(){if(!undoStack.length)return;redoStack.push(JSON.stringify({lines,components,compId}));applyState(undoStack.pop());render();}
+function redo(){if(!redoStack.length)return;undoStack.push(JSON.stringify({lines,components,compId}));applyState(redoStack.pop());render();}
+
+// ── Erase ─────────────────────────────────────────────────────────────────────
+function segEdgeT(seg,edge){
+  const dx1=seg.x2-seg.x1,dy1=seg.y2-seg.y1,dx2=edge.x2-edge.x1,dy2=edge.y2-edge.y1,dn=dx1*dy2-dy1*dx2;
+  if(Math.abs(dn)<1e-10)return null;
+  const dx3=edge.x1-seg.x1,dy3=edge.y1-seg.y1;
+  const ta=(dx3*dy2-dy3*dx2)/dn,tb=(dx3*dy1-dy3*dx1)/dn;
+  if(tb<-1e-9||tb>1+1e-9||ta<-1e-9||ta>1+1e-9)return null;
+  return ta;
+}
+function clipOutside(seg,bx1,by1,bx2,by2){
+  const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1;
+  const inside=(px,py)=>px>bx1&&px<bx2&&py>by1&&py<by2;
+  const edges=[{x1:bx1,y1:by1,x2:bx2,y2:by1},{x1:bx2,y1:by1,x2:bx2,y2:by2},{x1:bx1,y1:by2,x2:bx2,y2:by2},{x1:bx1,y1:by1,x2:bx1,y2:by2}];
+  const ts=[0,1];
+  for(const e of edges){const t=segEdgeT(seg,e);if(t!==null&&t>1e-9&&t<1-1e-9)ts.push(t);}
+  ts.sort((a,b)=>a-b);
+  const res=[];
+  for(let i=0;i<ts.length-1;i++){
+    const ta=ts[i],tb=ts[i+1],mx=seg.x1+(ta+tb)/2*dx,my=seg.y1+(ta+tb)/2*dy;
+    if(!inside(mx,my)){const ax=seg.x1+ta*dx,ay=seg.y1+ta*dy,bx_=seg.x1+tb*dx,by_=seg.y1+tb*dy;if(!ptEq(ax,ay,bx_,by_))res.push({x1:ax,y1:ay,x2:bx_,y2:by_});}
+  }
+  return res;
+}
+function eraseInArea(rx,ry,rw,rh){
+  const x1=Math.min(rx,rx+rw),x2=Math.max(rx,rx+rw),y1=Math.min(ry,ry+rh),y2=Math.max(ry,ry+rh);
+  if(x1>=x2||y1>=y2)return;
+  const inA=c=>c.cx>=x1&&c.cx<=x2&&c.cy>=y1&&c.cy<=y2;
+  // Remove components first so inCompGap doesn't block their own gap restoration
+  const erased=components.filter(inA);
+  components=components.filter(c=>!inA(c));
+  for(const c of erased){if(LINE_SPLIT.includes(c.type))topoAdd(c.x1,c.y1,c.x2,c.y2);}
+  const clipped=lines.flatMap(l=>clipOutside(l,x1,y1,x2,y2));
+  lines=[];for(const s of clipped)topoAdd(s.x1,s.y1,s.x2,s.y2);
+}
+
+// ── Junctions ─────────────────────────────────────────────────────────────────
+function getJunctions(){
+  const all=[];
+  lines.forEach(l=>{all.push({x:l.x1,y:l.y1});all.push({x:l.x2,y:l.y2});});
+  components.filter(c=>LINE_SPLIT.includes(c.type)).forEach(c=>{all.push({x:c.x1,y:c.y1});all.push({x:c.x2,y:c.y2});});
+  const groups=[];
+  for(const pt of all){let g=groups.find(g=>Math.abs(g.x-pt.x)<EPS&&Math.abs(g.y-pt.y)<EPS);if(g)g.count++;else groups.push({x:pt.x,y:pt.y,count:1});}
+  return groups.filter(g=>g.count>=3);
+}
+
+// ── Component placement ───────────────────────────────────────────────────────
+function snapCenterT(px,py,seg){
+  const dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,lsq=dx*dx+dy*dy;
+  let t=Math.max(0,Math.min(1,((px-seg.x1)*dx+(py-seg.y1)*dy)/lsq));
+  if(Math.abs(dy)<EPS&&Math.abs(dx)>EPS){const x=snapV(seg.x1+t*dx);t=(x-seg.x1)/dx;}
+  else if(Math.abs(dx)<EPS&&Math.abs(dy)>EPS){const y=snapV(seg.y1+t*dy);t=(y-seg.y1)/dy;}
+  return Math.max(0,Math.min(1,t));
+}
+
+function findLineForComp(px,py,minLen=true){
+  let best=null,bd=GRID+4;
+  for(const l of lines){const d=ptSegDist(px,py,l);if(d<bd){bd=d;best=l;}}
+  if(!best)return null;
+  const seg=best,dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,len=Math.sqrt(dx*dx+dy*dy);
+  const hl=compHL();
+  if(minLen&&len<2*hl+EPS)return null;
+  const t=snapCenterT(px,py,seg);
+  const halfT=hl/len;
+  const t1=t-halfT,t2=t+halfT;
+  if(minLen&&(t1<1e-6||t2>1-1e-6))return null;
+  const cx=seg.x1+t*dx,cy=seg.y1+t*dy;
+  const x1_=seg.x1+t1*dx,y1_=seg.y1+t1*dy;
+  const x2_=seg.x1+t2*dx,y2_=seg.y1+t2*dy;
+  return{seg,t1,t2,cx,cy,x1:x1_,y1:y1_,x2:x2_,y2:y2_,angle:Math.atan2(dy,dx),len,hl};
+}
+
+function findLineForDeco(px,py){
+  // No minimum length for decorations
+  let best=null,bd=GRID+4;
+  for(const l of lines){const d=ptSegDist(px,py,l);if(d<bd){bd=d;best=l;}}
+  if(!best)return null;
+  const seg=best,dx=seg.x2-seg.x1,dy=seg.y2-seg.y1,len=Math.sqrt(dx*dx+dy*dy);
+  const t=snapCenterT(px,py,seg);
+  return{cx:seg.x1+t*dx,cy:seg.y1+t*dy,angle:Math.atan2(dy,dx),hl:compHL()*0.5};
+}
+
+// Find component at pixel position using local coord transform
+function findCompAt(px,py){
+  for(let i=components.length-1;i>=0;i--){
+    const c=components[i];
+    const hl=c.halfLen||GRID;
+    if(NODE_PLACE.includes(c.type)||c.type==='I'){
+      if(Math.hypot(px-c.cx,py-c.cy)<hl*1.2)return c;
+    } else {
+      // Transform to component local coords
+      const dx=px-c.cx,dy=py-c.cy;
+      const cos=Math.cos(-c.angle),sin=Math.sin(-c.angle);
+      const lx=dx*cos-dy*sin,ly=dx*sin+dy*cos;
+      if(Math.abs(lx)<hl*1.1&&Math.abs(ly)<hl*0.7)return c;
+    }
+  }
+  return null;
+}
+
+function compNumByType(type){return components.filter(c=>c.type===type).length+1;}
+
+function placeLineComp(type,px,py){
+  const r=findLineForComp(px,py);
+  if(!r){setStat('click a line — needs at least '+(COMP_HL*2)+'px');return;}
+  saveState();
+  // Remove the host segment plus any other collinear lines overlapping the gap
+  lines=lines.filter(l=>!segEq(l,r.seg));
+  if(!ptEq(r.seg.x1,r.seg.y1,r.x1,r.y1))lines.push({x1:r.seg.x1,y1:r.seg.y1,x2:r.x1,y2:r.y1});
+  if(!ptEq(r.x2,r.y2,r.seg.x2,r.seg.y2))lines.push({x1:r.x2,y1:r.y2,x2:r.seg.x2,y2:r.seg.y2});
+  const n=compNumByType(type);
+  const names={R:'R',S:'V',D:'D'};
+  const vals={R:'1k',S:'1V',D:'1'};
+  components.push({id:compId++,type,x1:r.x1,y1:r.y1,x2:r.x2,y2:r.y2,cx:r.cx,cy:r.cy,angle:r.angle,halfLen:r.hl,name:names[type]+n,value:vals[type],subtype:type==='S'?'V':type==='D'?'VCVS':null,mode:'normal',polarity:1});
+  enforceGaps(); // scrub any collinear overlapping lines that segEq missed
+  render();
+}
+
+function placeDecoComp(type,px,py){
+  const r=findLineForDeco(px,py);
+  if(!r){setStat('click on a line');return;}
+  saveState();
+  const n=compNumByType(type);
+  components.push({id:compId++,type,x1:r.cx,y1:r.cy,x2:r.cx,y2:r.cy,cx:r.cx,cy:r.cy,angle:r.angle,halfLen:r.hl,name:'I'+n,value:'',subtype:null,mode:'normal',polarity:1});
+  render();
+}
+
+// Remove N nodes that have ≥3 wire branches meeting at their point (spec: 3+ bridges → delete).
+function pruneJunctionNodes(){
+  const toRemove=[];
+  for(const c of components){
+    if(c.type!=='N')continue;
+    const branches=lines.filter(l=>ptEq(l.x1,l.y1,c.cx,c.cy)||ptEq(l.x2,l.y2,c.cx,c.cy)).length;
+    if(branches>=3)toRemove.push(c.id);
+  }
+  if(!toRemove.length)return;
+  // Clear supernode links for deleted nodes
+  for(const c of components){
+    if(c.superPartner!=null&&toRemove.includes(c.superPartner)){
+      c.superPartner=null;
+    }
+  }
+  if(snodeStart&&toRemove.includes(snodeStart.id))snodeStart=null;
+  components=components.filter(c=>!toRemove.includes(c.id));
+}
+
+// Link two N nodes as a supernode pair (n1=+, n2=−).
+// Fails silently if either node has no wire connection.
+function createSupernode(n1,n2){
+  const connected=c=>lines.some(l=>ptSegDist(c.cx,c.cy,l)<EPS);
+  if(!connected(n1)||!connected(n2)){setStat('both nodes must be connected to wires');return;}
+  // Dissolve any pre-existing partnerships
+  [n1,n2].forEach(n=>{
+    if(n.superPartner!=null){
+      const old=components.find(c=>c.id===n.superPartner);
+      if(old){old.superPartner=null;old.superPolarity=0;}
+    }
+  });
+  n1.superPartner=n2.id; n1.superPolarity= 1;
+  n2.superPartner=n1.id; n2.superPolarity=-1;
+  setStat(`supernode: ${n1.name}(+) — ${n2.name}(−)`);
+}
+
+function placeNodeComp(type,px,py){
+  const s=snapPt(px,py);
+  const hostWire=lines.find(l=>ptSegDist(s.x,s.y,l)<EPS);
+  if(!hostWire){setStat('click on a wire');return;}
+  if(type==='G'&&components.some(c=>c.type==='G'&&ptEq(c.cx,c.cy,s.x,s.y)))return;
+  saveState();
+  const n=compNumByType(type);
+  const hl=compHL();
+  // N nodes inherit the wire's direction so +/- markers align with the wire
+  const angle=type==='N'?Math.atan2(hostWire.y2-hostWire.y1,hostWire.x2-hostWire.x1):0;
+  components.push({id:compId++,type,x1:s.x,y1:s.y,x2:s.x,y2:s.y,cx:s.x,cy:s.y,angle,halfLen:hl,name:type==='G'?'GND':'N'+n,value:type==='G'?'0':'',subtype:null,mode:'normal',polarity:1,superPartner:null,superPolarity:0});
+  render();
+}
+
+// ── Symbol drawing ────────────────────────────────────────────────────────────
+function withComp(c,ghost,fn){
+  ctx.save();
+  ctx.translate(c.cx,c.cy);
+  // polarity=-1 flips the angle by π (swaps +/- and arrow direction)
+  ctx.rotate(c.angle+((c.polarity||1)<0?Math.PI:0));
+  // White-fill the symbol body so any wire passing through (even perpendicularly) is masked
+  if(!ghost){
+    const hl=c.halfLen||COMP_HL;
+    ctx.fillStyle='#fff';
+    if(c.type==='R'){
+      const rw=hl*R_W,rh=hl*R_H;
+      ctx.fillRect(-rw,-rh,2*rw,2*rh);
+    } else if(c.type==='S'){
+      const r=hl*S_R;
+      ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+    } else if(c.type==='D'){
+      const dw=hl*D_W,dh=hl*D_H;
+      ctx.beginPath();ctx.moveTo(-dw,0);ctx.lineTo(0,-dh);ctx.lineTo(dw,0);ctx.lineTo(0,dh);ctx.closePath();ctx.fill();
+    }
+  }
+  ctx.strokeStyle=ghost?'rgba(80,80,80,0.3)':'#111';
+  ctx.fillStyle=ghost?'rgba(80,80,80,0.3)':'#111';
+  ctx.lineWidth=2;ctx.lineCap='round';ctx.lineJoin='round';
+  fn();
+  ctx.restore();
+}
+
+// ANSI zigzag resistor: leads to ±rw, then R_ZIG alternating peaks of amplitude rh
+function symR(ctx,hl){
+  const rw=hl*R_W,rh=hl*R_H,n=R_ZIG,step=(2*rw)/n;
+  ctx.beginPath();
+  ctx.moveTo(-hl,0);ctx.lineTo(-rw,0);
+  for(let i=0;i<n;i++)ctx.lineTo(-rw+step*(i+0.5), i%2===0?-rh:rh);
+  ctx.lineTo(rw,0);ctx.lineTo(hl,0);
+  ctx.stroke();
+}
+function symVS(ctx,hl){
+  const r=hl*S_R;
+  ctx.beginPath();ctx.moveTo(-hl,0);ctx.lineTo(-r,0);ctx.moveTo(r,0);ctx.lineTo(hl,0);ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.save();ctx.font=`bold ${Math.round(r*0.85)}px Courier New`;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('+',r*0.45,0);ctx.fillText('−',-r*0.45,0);ctx.restore();
+}
+function symIS(ctx,hl){
+  const r=hl*S_R,aw=r*0.52;
+  ctx.beginPath();ctx.moveTo(-hl,0);ctx.lineTo(-r,0);ctx.moveTo(r,0);ctx.lineTo(hl,0);ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-aw*0.55,0);ctx.lineTo(aw*0.55,0);ctx.moveTo(aw*0.1,-aw*0.38);ctx.lineTo(aw*0.55,0);ctx.lineTo(aw*0.1,aw*0.38);ctx.stroke();
+}
+function symDS(ctx,hl,isI){
+  const dw=hl*D_W,dh=hl*D_H;
+  ctx.beginPath();ctx.moveTo(-hl,0);ctx.lineTo(-dw,0);ctx.moveTo(dw,0);ctx.lineTo(hl,0);
+  ctx.moveTo(-dw,0);ctx.lineTo(0,-dh);ctx.lineTo(dw,0);ctx.lineTo(0,dh);ctx.closePath();ctx.stroke();
+  if(isI){const aw=dh*0.44;ctx.beginPath();ctx.moveTo(-aw*0.55,0);ctx.lineTo(aw*0.55,0);ctx.moveTo(aw*0.1,-aw*0.38);ctx.lineTo(aw*0.55,0);ctx.lineTo(aw*0.1,aw*0.38);ctx.stroke();}
+  else{ctx.save();ctx.font=`bold ${Math.round(dw*0.85)}px Courier New`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',dw*0.45,0);ctx.fillText('−',-dw*0.45,0);ctx.restore();}
+}
+function symC(ctx,hl){
+  const T=hl*0.85;
+  ctx.beginPath();ctx.moveTo(-T*0.7,0);ctx.lineTo(T*0.7,0);ctx.moveTo(T*0.2,-T*0.38);ctx.lineTo(T*0.7,0);ctx.lineTo(T*0.2,T*0.38);ctx.stroke();
+}
+function symGND(ctx,hl){
+  const s=hl*0.55;
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,s*0.22);
+  const ws=[s,s*0.65,s*0.35];
+  for(let i=0;i<3;i++){const y=s*0.22+i*s*0.3,w=ws[i];ctx.moveTo(-w/2,y);ctx.lineTo(w/2,y);}
+  ctx.stroke();
+}
+
+// ── Canvas labels ─────────────────────────────────────────────────────────────
+// Anchored on the OUTSIDE edge of the symbol and aligned away from it, so the text
+// grows outward and never lands on the sprite. Backed by a translucent yellow badge.
+// "Pastel Daydream" — assigned to label badges in element CREATION order (by id).
+// id 0→Cloud Cream … id 9→Warm Gray, id 10 wraps back to Cloud Cream.
+const PALETTE=[
+  {name:'Cloud Cream',    hex:'#FEF5E8'},
+  {name:'Powder Pink',    hex:'#F7C7DB'},
+  {name:'Peach Sorbet',   hex:'#F5D0B0'},
+  {name:'Butter Yellow',  hex:'#F8E69E'},
+  {name:'Mint Milk',      hex:'#CCEDE2'},
+  {name:'Baby Sky',       hex:'#CEE7FE'},
+  {name:'Lilac Mist',     hex:'#D7CEEF'},
+  {name:'Blueberry Cream',hex:'#B7C3E2'},
+  {name:'Soft Sage',      hex:'#C8D7C4'},
+  {name:'Warm Gray',      hex:'#BEB7B1'},
+];
+const compColor=c=>PALETTE[((c&&typeof c.id==='number'?c.id:0)%PALETTE.length+PALETTE.length)%PALETTE.length];
+const LBL_BG=PALETTE[0].hex; // fallback when no component is in hand
+function drawLabel(txt,ax,ay,dx,dy,fsize,color,bg){
+  if(!txt)return;
+  ctx.save();
+  ctx.font=`${fsize}px Courier New`;
+  const horiz=Math.abs(dx)>=Math.abs(dy);
+  ctx.textAlign=horiz?(dx>=0?'left':'right'):'center';
+  ctx.textBaseline=horiz?'middle':(dy>=0?'top':'bottom');
+  const w=ctx.measureText(txt).width,h=fsize*1.08,pad=3;
+  const bx=ctx.textAlign==='left'?ax-pad:ctx.textAlign==='right'?ax-w-pad:ax-w/2-pad;
+  const by=ctx.textBaseline==='middle'?ay-h/2:ctx.textBaseline==='top'?ay-1:ay-h+1;
+  ctx.fillStyle=bg||LBL_BG;ctx.fillRect(bx,by,w+pad*2,h);
+  ctx.fillStyle=color;ctx.fillText(txt,ax,ay);
+  ctx.restore();
+}
+
+function drawComp(c,ghost=false){
+  const hl=c.halfLen||GRID;
+  const fsize=Math.max(15,Math.round(hl*0.58)); // 150% base, scales with hl
+  const isSpecial=!ghost&&(c.mode==='short'||c.mode==='open');
+
+  if(c.type==='G'){
+    ctx.save();
+    ctx.translate(c.cx,c.cy);
+    ctx.rotate(c.angle);
+    if(ghost)ctx.globalAlpha=0.3;
+    ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.lineCap='round';
+    symGND(ctx,hl);
+    if(!ghost){
+      const s=hl*0.55;
+      drawLabel(c.name+(c.value?'='+c.value:''),0,s*0.22+2*s*0.3+6,0,1,fsize,'#555',compColor(c).hex);
+    }
+    ctx.restore();
+    return;
+  }
+  if(c.type==='N'){
+    const inSN=!ghost&&c.superPartner!=null;
+    const isPending=!ghost&&snodeStart?.id===c.id;
+    const dotClr=ghost?'rgba(42,157,78,0.3)':inSN?'#c07000':'#2a9d4e';
+    ctx.save();ctx.translate(c.cx,c.cy);
+    if(ghost)ctx.globalAlpha=0.3;
+    // Pending supernode: pulsing ring
+    if(isPending){ctx.strokeStyle='#c07000';ctx.lineWidth=2;ctx.setLineDash([3,3]);ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
+    ctx.fillStyle=dotClr;ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();
+    if(!ghost){
+      // +/- polarity markers along the wire axis, offset slightly above
+      const d=(c.halfLen||GRID)*0.55;
+      const pm=c.polarity||1;
+      const ca=Math.cos(c.angle),sa=Math.sin(c.angle);
+      const cp=Math.cos(c.angle-Math.PI/2),sp=Math.sin(c.angle-Math.PI/2);
+      const po=8;
+      ctx.font=`bold ${Math.round((c.halfLen||GRID)*0.55)}px Courier New`;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=dotClr;
+      ctx.fillText('+', ca*d*pm+cp*po, sa*d*pm+sp*po);
+      ctx.fillText('−',-ca*d*pm+cp*po,-sa*d*pm+sp*po);
+      // Supernode badge: circle with polarity sign
+      if(inSN){
+        const badge=c.superPolarity===1?'+':'−';
+        ctx.font=`bold ${Math.round((c.halfLen||GRID)*0.6)}px Courier New`;
+        ctx.strokeStyle='#c07000';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(0,-13,7,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle='#c07000';ctx.fillText(badge,0,-13);
+      }
+    }
+    ctx.restore();
+    if(!ghost){
+      // +/- markers sit on the angle-PI/2 side, so the label goes on the other side
+      let lx=Math.cos(c.angle+Math.PI/2),ly=Math.sin(c.angle+Math.PI/2);
+      if(Math.abs(lx)<1e-6)lx=0;
+      if(Math.abs(ly)<1e-6)ly=0;
+      drawLabel(c.name+(c.value?'='+c.value:''),c.cx+lx*11,c.cy+ly*11,lx,ly,fsize,inSN?'#a05c00':'#1d6f37',compColor(c).hex);
+    }
+    return;
+  }
+
+  // Draw component symbol — translucent if short/open mode
+  ctx.save();
+  if(isSpecial)ctx.globalAlpha=0.4;
+  withComp(c,ghost,()=>{
+    switch(c.type){
+      case 'R':symR(ctx,hl);break;
+      case 'S':c.subtype==='I'?symIS(ctx,hl):symVS(ctx,hl);break;
+      case 'D':symDS(ctx,hl,c.subtype==='CCCS'||c.subtype==='VCCS');break;
+      case 'I':symC(ctx,hl);break;
+    }
+  });
+  ctx.restore();
+
+  // Short/open circuit overlays (drawn at full opacity on top)
+  if(!ghost&&c.mode==='short'){
+    ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(c.x1,c.y1);ctx.lineTo(c.x2,c.y2);ctx.stroke();
+    ctx.fillStyle='#111';
+    ctx.beginPath();ctx.arc(c.x1,c.y1,4.5,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(c.x2,c.y2,4.5,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+  if(!ghost&&c.mode==='open'){
+    // Hollow dots — open circuit, no connection
+    ctx.save();ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(c.x1,c.y1,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.arc(c.x2,c.y2,4.5,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.restore();
+  }
+
+  if(!ghost){
+    const label=(c.name||'')+(c.value?'='+c.value:'')+(c.type==='D'&&c.ctrl?'·'+c.ctrl:'');
+    if(!label)return;
+    // Half-extent of the drawn symbol perpendicular to its axis — the label clears this.
+    const bodyH={R:hl*(R_H+0.02),S:hl*(S_R+0.02),D:hl*(D_H+0.02),I:hl*0.34}[c.type]||hl*0.32;
+    const perp=c.angle-Math.PI/2;
+    let dx=Math.cos(perp),dy=Math.sin(perp);
+    if(Math.abs(dx)<1e-6)dx=0;
+    if(Math.abs(dy)<1e-6)dy=0;
+    const off=bodyH+6;
+    drawLabel(label,c.cx+dx*off,c.cy+dy*off,dx,dy,fsize,'#333',compColor(c).hex);
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(){
+  // Enforce gaps on the data before every draw — catches anything that slipped through
+  enforceGaps();
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#e8e8e8';ctx.lineWidth=1;
+  for(let x=0;x<W;x+=GRID){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=GRID){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='#111';ctx.lineWidth=2;ctx.lineCap='round';
+  lines.forEach(l=>{ctx.beginPath();ctx.moveTo(l.x1,l.y1);ctx.lineTo(l.x2,l.y2);ctx.stroke();});
+  // Guard: drop snodeStart if it was deleted
+  if(snodeStart&&!components.find(c=>c.id===snodeStart.id))snodeStart=null;
+  components.forEach(c=>drawComp(c,false));
+  // Draw dashed orange line between each supernode pair (drawn once: from + to −)
+  ctx.save();ctx.strokeStyle='#c07000';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);
+  for(const c of components){
+    if(c.type==='N'&&c.superPartner!=null&&c.superPolarity===1){
+      const p=components.find(x=>x.id===c.superPartner);
+      if(p){ctx.beginPath();ctx.moveTo(c.cx,c.cy);ctx.lineTo(p.cx,p.cy);ctx.stroke();}
+    }
+  }
+  ctx.setLineDash([]);ctx.restore();
+  ctx.fillStyle='#111';
+  getJunctions().forEach(({x,y})=>{ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();});
+  if(compHover&&mode==='comp')drawComp({...compHover,type:activeComp,name:'',value:'',subtype:null,mode:'normal',polarity:1},true);
+  if(linePreview&&!zeroSeg(linePreview)){
+    ctx.strokeStyle='#aaa';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(linePreview.x1,linePreview.y1);ctx.lineTo(linePreview.x2,linePreview.y2);ctx.stroke();ctx.setLineDash([]);
+    if(lineState==='first-placed'){ctx.fillStyle='#111';ctx.beginPath();ctx.arc(linePreview.x1,linePreview.y1,4,0,Math.PI*2);ctx.fill();}
+  }
+  if(rectPreview){const{x1,y1,x2,y2}=rectPreview;ctx.strokeStyle='#aaa';ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.strokeRect(x1,y1,x2-x1,y2-y1);ctx.setLineDash([]);}
+  if(eraseRect){ctx.strokeStyle='#f44';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.strokeRect(eraseRect.x,eraseRect.y,eraseRect.w,eraseRect.h);ctx.fillStyle='rgba(255,68,68,0.04)';ctx.fillRect(eraseRect.x,eraseRect.y,eraseRect.w,eraseRect.h);ctx.setLineDash([]);}
+}
+
+// ── Mode ──────────────────────────────────────────────────────────────────────
+function setMode(m,comp){
+  mode=m;if(comp)activeComp=comp.toUpperCase();
+  modeText.textContent=m==='comp'?`COMP [${activeComp}]`:m.toUpperCase();
+  canvas.className=`mode-${m}`;
+  lineState='idle';lineStart=null;linePreview=null;clickChain=[];
+  rectState='idle';rectStart=null;rectPreview=null;
+  erasing=false;eraseStart=null;eraseRect=null;mouseDownPos=null;compHover=null;
+  snodeStart=null;
+  ['0','1','9'].forEach(k=>{const el=document.getElementById('k-'+k);if(el)el.className='k'+(m===({'0':'line','1':'select','9':'rect'}[k])||''?' active':'');});
+  COMP_KEYS.forEach(k=>{const el=document.getElementById('k-'+k);if(el)el.className='k'+(m==='comp'&&activeComp===k.toUpperCase()?' active':'');});
+  const hints={select:'left-click: inspect | right-dbl: edit | right-click src/I: flip',line:'drag→H/V | click-click→any pt | right-click: exit',rect:'drag rect | right-click: exit',comp:'click to place | right-click: exit'};
+  setStat(hints[m]||'');render();
+}
+
+function commitLine(x1,y1,x2,y2){if(ptEq(x1,y1,x2,y2))return;saveState();topoAdd(x1,y1,x2,y2);render();}
+
+function updateCompHover(px,py){
+  if(mode!=='comp')return;
+  if(LINE_SPLIT.includes(activeComp)){const r=findLineForComp(px,py);compHover=r?{...r}:null;}
+  else if(activeComp==='I'){const r=findLineForDeco(px,py);compHover=r?{cx:r.cx,cy:r.cy,angle:r.angle,halfLen:r.hl,x1:r.cx,y1:r.cy,x2:r.cx,y2:r.cy}:null;}
+  else{const s=snapPt(px,py);compHover={cx:s.x,cy:s.y,angle:Math.PI/2,halfLen:compHL(),x1:s.x,y1:s.y,x2:s.x,y2:s.y};}
+}
+
+// ── Popup ─────────────────────────────────────────────────────────────────────
+const popup=document.getElementById('popup');
+
+// Rebuild the "controlled by" dropdown for dependent sources.
+// Lists V(name) and I(name) for every placed source, node, or current marker.
+function rebuildCtrl(savedVal){
+  const ctrlSel=document.getElementById('pop-ctrl');
+  const opts=[];
+  for(const c of components){
+    if(c.id===popComp?.id)continue;
+    if(c.type==='S'){
+      const kind=c.subtype==='I'?'I-src':'V-src';
+      opts.push(`<option value="V(${c.name})">V(${c.name}) — ${kind} voltage</option>`);
+      opts.push(`<option value="I(${c.name})">I(${c.name}) — ${kind} current</option>`);
+    }
+    if(c.type==='N'){
+      opts.push(`<option value="V(${c.name})">V(${c.name}) — node voltage</option>`);
+    }
+    if(c.type==='I'){
+      opts.push(`<option value="I(${c.name})">I(${c.name}) — current marker</option>`);
+    }
+  }
+  ctrlSel.innerHTML=opts.length
+    ?opts.join('')
+    :'<option value="">— place sources / nodes first —</option>';
+  if(savedVal&&Array.from(ctrlSel.options).some(o=>o.value===savedVal))
+    ctrlSel.value=savedVal;
+}
+
+function openPopup(px,py){
+  const c=findCompAt(px,py);if(!c)return;popComp=c;
+  document.getElementById('popup-type').textContent=COMP_NAMES[c.type]||c.type;
+  document.getElementById('pop-name').value=c.name||'';
+  document.getElementById('pop-value').value=c.value||'';
+  const subRow=document.getElementById('pop-sub-row'),subSel=document.getElementById('pop-sub');
+  const modeRow=document.getElementById('pop-mode-row'),modeSel=document.getElementById('pop-mode');
+  subRow.style.display='none';modeRow.style.display='none';
+  document.getElementById('pop-ctrl-row').style.display='none';
+  document.getElementById('pop-val-row').style.display='flex';
+  if(c.type==='S'){subRow.style.display='flex';subSel.innerHTML='<option value="V">V source</option><option value="I">I source</option>';subSel.value=c.subtype||'V';modeRow.style.display='flex';modeSel.value=c.mode||'normal';}
+  if(c.type==='D'){
+    subRow.style.display='flex';
+    subSel.innerHTML=['VCVS','CCVS','VCCS','CCCS'].map(v=>`<option value="${v}">${v}</option>`).join('');
+    subSel.value=c.subtype||'VCVS';
+    document.getElementById('pop-ctrl-row').style.display='flex';
+    rebuildCtrl(c.ctrl||'');
+  }
+  if(c.type==='G')document.getElementById('pop-val-row').style.display='none';
+  const rect=canvas.getBoundingClientRect();
+  let lx=rect.left+c.cx+20,ly=rect.top+c.cy-20;
+  lx=Math.min(lx,window.innerWidth-225);ly=Math.min(Math.max(ly,10),window.innerHeight-220);
+  popup.style.left=lx+'px';popup.style.top=ly+'px';popup.style.display='block';
+  document.getElementById('pop-name').focus();
+}
+function closePopup(del=false){
+  if(popComp&&!del){
+    saveState();
+    popComp.name=document.getElementById('pop-name').value.trim();
+    popComp.value=document.getElementById('pop-value').value.trim();
+    const sub=document.getElementById('pop-sub');if(sub.options.length)popComp.subtype=sub.value;
+    if(popComp.type==='D'){const ctrl=document.getElementById('pop-ctrl');popComp.ctrl=ctrl.options.length&&ctrl.value?ctrl.value:'';}
+    popComp.mode=document.getElementById('pop-mode').value;
+    render();
+  }
+  if(popComp&&del){
+    saveState();
+    const gone=popComp;
+    components=components.filter(c=>c.id!==gone.id); // remove first so topoAdd isn't blocked by its own gap
+    if(LINE_SPLIT.includes(gone.type))topoAdd(gone.x1,gone.y1,gone.x2,gone.y2);
+    render();
+  }
+  popup.style.display='none';popComp=null;
+}
+document.getElementById('pop-ok').addEventListener('click',()=>closePopup(false));
+document.getElementById('pop-del').addEventListener('click',()=>closePopup(true));
+document.addEventListener('mousedown',e=>{if(popup.style.display==='block'&&!popup.contains(e.target))closePopup(false);});
+
+// ── Supernode line hit-test ────────────────────────────────────────────────────
+function findSupernodeLine(px,py){
+  for(const c of components){
+    if(c.type!=='N'||c.superPartner===null||c.superPolarity!==1)continue;
+    const p=components.find(x=>x.id===c.superPartner);
+    if(!p)continue;
+    const dx=p.cx-c.cx,dy=p.cy-c.cy,lsq=dx*dx+dy*dy;
+    if(lsq<EPS*EPS)continue;
+    const t=((px-c.cx)*dx+(py-c.cy)*dy)/lsq;
+    if(t<0.15||t>0.85)continue; // exclude near endpoints (those are the node dots)
+    if(ptSegDist(px,py,{x1:c.cx,y1:c.cy,x2:p.cx,y2:p.cy})<8)return[c,p];
+  }
+  return null;
+}
+
+// ── Mouse ─────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousedown',e=>{
+  if(popup.style.display==='block')return;
+  const pos=cpos(e);
+  // Supernode pending: any left-click → create or cancel (works in all modes)
+  if(snodeStart&&e.button===0){
+    const hit=findCompAt(pos.x,pos.y);
+    if(hit?.type==='N'&&hit.id!==snodeStart.id){
+      saveState();createSupernode(snodeStart,hit);snodeStart=null;render();return;
+    } else {
+      snodeStart=null;setStat('supernode cancelled');render();
+      return; // eat click so mode actions don't fire on cancel
+    }
+  }
+  if(e.button===2){
+    e.preventDefault();
+    const es=snapPt(pos.x,pos.y);
+    erasing=true;eraseStart=es;eraseRect={x:es.x,y:es.y,w:0,h:0};
+    return;
+  }
+  if(e.button!==0)return;
+  const s=mode==='line'?snapGap(pos.x,pos.y):snapPt(pos.x,pos.y);
+  if(mode==='line'){
+    mouseDownPos=pos;
+    if(lineState==='idle'){lineState='mouse-held';lineStart=s;linePreview={x1:s.x,y1:s.y,x2:s.x,y2:s.y};}
+    else if(lineState==='first-placed'){commitLine(lineStart.x,lineStart.y,s.x,s.y);lineStart=s;clickChain.push(s);linePreview={x1:s.x,y1:s.y,x2:s.x,y2:s.y};setStat('segment added');}
+  } else if(mode==='rect'){
+    mouseDownPos=pos;rectState='mouse-held';rectStart=s;rectPreview={x1:s.x,y1:s.y,x2:s.x,y2:s.y};
+  } else if(mode==='comp'){
+    if(LINE_SPLIT.includes(activeComp))placeLineComp(activeComp,pos.x,pos.y);
+    else if(activeComp==='I')placeDecoComp(activeComp,pos.x,pos.y);
+    else if(NODE_PLACE.includes(activeComp))placeNodeComp(activeComp,pos.x,pos.y);
+  } else if(mode==='select'){
+    const snLine=findSupernodeLine(pos.x,pos.y);
+    if(snLine){
+      saveState();snLine[0].superPolarity*=-1;snLine[1].superPolarity*=-1;render();
+      setStat(`supernode polarity swapped: ${snLine[1].name}(+) — ${snLine[0].name}(−)`);
+    } else {
+      const c=findCompAt(pos.x,pos.y);
+      if(c&&c.type==='N'){
+        saveState();c.polarity=(c.polarity||1)*-1;render();
+        setStat(`${c.name} polarity flipped`);
+      } else if(c){
+        setStat(`${c.name||c.type}${c.value?' = '+c.value:''}${c.subtype?' ['+c.subtype+']':''} [right-dbl to edit]`);
+      } else setStat('');
+    }
+  }
+});
+
+canvas.addEventListener('mousemove',e=>{
+  if(popup.style.display==='block')return;
+  const pos=cpos(e),s=mode==='line'?snapGap(pos.x,pos.y):snapPt(pos.x,pos.y);
+  lastMousePos=pos;
+  if(erasing&&eraseStart){
+    const s2=snapPt(pos.x,pos.y);
+    eraseRect={x:eraseStart.x,y:eraseStart.y,w:s2.x-eraseStart.x,h:s2.y-eraseStart.y};
+    render();return;
+  }
+  if(mode==='line'){
+    if(lineState==='mouse-held'&&(Math.abs(pos.x-mouseDownPos.x)>DRAG_TH||Math.abs(pos.y-mouseDownPos.y)>DRAG_TH))lineState='dragging';
+    if(lineState==='dragging'){const rawS=snapPt(pos.x,pos.y);let prev=snapHV(lineStart,rawS);prev=clipToSafe(prev.x1,prev.y1,prev.x2,prev.y2);linePreview=prev;render();}
+    if(lineState==='first-placed'){linePreview={x1:lineStart.x,y1:lineStart.y,x2:s.x,y2:s.y};render();}
+  } else if(mode==='rect'){
+    if(rectState==='mouse-held'&&(Math.abs(pos.x-mouseDownPos.x)>DRAG_TH||Math.abs(pos.y-mouseDownPos.y)>DRAG_TH))rectState='dragging';
+    if(rectState==='dragging'){rectPreview={x1:rectStart.x,y1:rectStart.y,x2:s.x,y2:s.y};render();}
+  } else if(mode==='comp'){
+    updateCompHover(pos.x,pos.y);render();
+  }
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(popup.style.display==='block')return;
+  const pos=cpos(e),s=mode==='line'?snapGap(pos.x,pos.y):snapPt(pos.x,pos.y);
+  if(e.button===2){
+    const moved=eraseRect&&(Math.abs(eraseRect.w)>=GRID||Math.abs(eraseRect.h)>=GRID);
+    if(moved){saveState();eraseInArea(eraseRect.x,eraseRect.y,eraseRect.w,eraseRect.h);render();}
+    else{
+      const now=Date.now();
+      if(now-lastRUp.time<380&&Math.hypot(pos.x-lastRUp.x,pos.y-lastRUp.y)<15){
+        // Right double-click → popup
+        openPopup(pos.x,pos.y);lastRUp={time:0,x:0,y:0};
+      } else {
+        // Single right-click — exit drawing mode only
+        if(mode!=='select')setMode('select');
+        lastRUp={time:now,x:pos.x,y:pos.y};
+      }
+    }
+    erasing=false;eraseStart=null;eraseRect=null;render();return;
+  }
+  if(e.button!==0)return;
+  if(mode==='line'){
+    if(lineState==='dragging'){const rawS=snapPt(pos.x,pos.y);let ln=snapHV(lineStart,rawS);ln=clipToSafe(ln.x1,ln.y1,ln.x2,ln.y2);commitLine(ln.x1,ln.y1,ln.x2,ln.y2);lineState='idle';lineStart=null;linePreview=null;clickChain=[];setStat('done');}
+    else if(lineState==='mouse-held'){lineState='first-placed';lineStart=s;linePreview={x1:s.x,y1:s.y,x2:s.x,y2:s.y};clickChain=[s];setStat('start locked — click any grid point');render();}
+  } else if(mode==='rect'){
+    if(rectState==='dragging'){
+      const{x1,y1,x2,y2}=rectPreview;
+      if(!ptEq(x1,y1,x2,y2)){saveState();topoAdd(x1,y1,x2,y1);topoAdd(x2,y1,x2,y2);topoAdd(x1,y2,x2,y2);topoAdd(x1,y1,x1,y2);render();}
+      rectState='idle';rectStart=null;rectPreview=null;setStat('rect placed');
+    } else if(rectState==='mouse-held')rectState='idle';
+  }
+});
+
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+// Left double-click:
+//   G      → rotate 90°
+//   S/D/I  → flip polarity
+//   N      → first dblclick: enter supernode-start mode (node highlighted as +)
+//            dblclick same N again: cancel mode
+//            dblclick different N while one pending: create supernode
+// Single left-click (select mode):
+//   N      → flip polarity  |  supernode dotted line → swap supernode polarity
+canvas.addEventListener('dblclick',e=>{
+  if(popup.style.display==='block')return;
+  const pos=cpos(e);
+  const c=findCompAt(pos.x,pos.y);
+  if(!c)return;
+  if(c.type==='G'){
+    saveState();c.angle=(c.angle+Math.PI/2)%(Math.PI*2);
+    render();setStat('GND rotated');
+  } else if(['S','D','I'].includes(c.type)){
+    saveState();c.polarity=(c.polarity||1)*-1;render();
+    setStat(`${c.name} polarity flipped`);
+  } else if(c.type==='N'){
+    if(!snodeStart){
+      // Enter supernode-start mode
+      snodeStart=c;
+      setStat(`supernode: ${c.name}(+) — click another N node to complete`);
+      render();
+    } else if(snodeStart.id===c.id){
+      // Double-click same node → cancel mode
+      snodeStart=null;render();setStat('supernode cancelled');
+    } else {
+      // Double-click different node while one is pending → create supernode
+      saveState();createSupernode(snodeStart,c);
+      snodeStart=null;render();
+    }
+  }
+});
+
+// (scroll-to-resize removed — component size is fixed at COMP_HL=2×GRID)
+
+// ── Keyboard ──────────────────────────────────────────────────────────────────
+window.addEventListener('keydown',e=>{
+  if(popup.style.display==='block')return;
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&e.key==='z'){e.preventDefault();undo();return;}
+  if(ctrl&&(e.key==='y'||(e.shiftKey&&e.key==='Z'))){e.preventDefault();redo();return;}
+  const key=e.key.toLowerCase();
+  if(key==='0'){setMode('line');return;}
+  if(key==='9'){setMode('rect');return;}
+  if(key==='1'||e.key==='Escape'){setMode('select');return;}
+  if(COMP_KEYS.includes(key)){setMode('comp',key);return;}
+  if(['v','l','p'].includes(key))setStat(`[${key.toUpperCase()}] — coming in later phases`);
+});
+
+// ── Circuit Solver ────────────────────────────────────────────────────────────
+function parseVal(str){
+  if(str===null||str===undefined||str.trim()==='')return null;
+  str=str.trim().replace(/[VvAaΩωWwFfHz]+$/,'').trim();
+  const m=str.match(/^([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s*([kKmMuUμnNpPGT]?)$/);
+  if(m){
+    const n=parseFloat(m[1]);
+    const mult={k:1e3,K:1e3,M:1e6,m:1e-3,u:1e-6,U:1e-6,μ:1e-6,n:1e-9,N:1e-9,p:1e-12,G:1e9,T:1e12}[m[2]]||1;
+    return n*mult;
+  }
+  const n=parseFloat(str);
+  return isNaN(n)?str:n;
+}
+
+function fmtV(v){
+  if(v===null||isNaN(v))return'?';
+  const a=Math.abs(v);
+  if(a===0)return'0V';
+  if(a>=1e3)return(v/1e3).toPrecision(4)+'kV';
+  if(a>=1)return v.toPrecision(4)+'V';
+  if(a>=1e-3)return(v*1e3).toPrecision(4)+'mV';
+  return(v*1e6).toPrecision(4)+'μV';
+}
+function fmtA(v){
+  if(v===null||isNaN(v))return'?';
+  const a=Math.abs(v);
+  if(a===0)return'0A';
+  if(a>=1)return v.toPrecision(4)+'A';
+  if(a>=1e-3)return(v*1e3).toPrecision(4)+'mA';
+  if(a>=1e-6)return(v*1e6).toPrecision(4)+'μA';
+  return(v*1e9).toPrecision(4)+'nA';
+}
+
+// ── Fraction-aware display (results panel only — NOT for c.value, which is re-parsed) ──
+// Continued-fraction expansion → exact-ish rational, or null if none is small enough.
+function toFrac(v,maxDen=99,maxNum=999,tol=1e-9){
+  if(v===null||!isFinite(v))return null;
+  const sgn=v<0?-1:1;let b=Math.abs(v);
+  const target=b;
+  let h0=0,h1=1,k0=1,k1=0;
+  for(let i=0;i<32;i++){
+    const a=Math.floor(b);
+    const h2=a*h1+h0,k2=a*k1+k0;
+    h0=h1;h1=h2;k0=k1;k1=k2;
+    if(k1>maxDen||k1===0||h1>maxNum)return null;
+    if(Math.abs(target-h1/k1)<=tol*Math.max(1,target))return{n:sgn*h1,d:k1};
+    const rem=b-a;
+    if(rem<1e-12)return null;
+    b=1/rem;
+  }
+  return null;
+}
+const V_UNITS=[[1e3,'kV'],[1,'V'],[1e-3,'mV'],[1e-6,'μV']];
+const A_UNITS=[[1,'A'],[1e-3,'mA'],[1e-6,'μA'],[1e-9,'nA']];
+// Render as "fraction (decimal)". The unit is chosen by magnitude, but if stepping
+// up one prefix yields a simpler fraction (e.g. 1000/3 μA → 1/3 mA), prefer that.
+function fmtFrac(v,units,zero){
+  if(v===null||isNaN(v))return'?';
+  if(v===0)return zero;
+  const a=Math.abs(v);
+  let i=units.findIndex(([s])=>a>=s);
+  if(i===-1)i=units.length-1;
+  const score=f=>f?(f.d===1?Math.abs(f.n):Math.abs(f.n)+f.d):Infinity;
+  const cands=[i,i-1].filter(j=>j>=0).map(j=>{
+    const m=v/units[j][0];
+    return{m,u:units[j][1],f:toFrac(m)};
+  });
+  const best=cands.reduce((p,c)=>score(c.f)<score(p.f)?c:p);
+  const dec=best.m.toPrecision(4)+best.u;
+  if(!best.f||best.f.d===1)return dec;          // whole number → fraction adds nothing
+  return`${best.f.n}/${best.f.d}${best.u} (${dec})`;
+}
+const fmtVF=v=>fmtFrac(v,V_UNITS,'0V');
+const fmtAF=v=>fmtFrac(v,A_UNITS,'0A');
+
+function gaussElim(Ain,bin){
+  const n=bin.length;
+  const A=Ain.map(r=>[...r]),b=[...bin];
+  for(let c=0;c<n;c++){
+    let mx=c,mv=Math.abs(A[c][c]);
+    for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>mv){mv=Math.abs(A[r][c]);mx=r;}
+    if(mv<1e-14)return null;
+    [A[c],A[mx]]=[A[mx],A[c]];[b[c],b[mx]]=[b[mx],b[c]];
+    for(let r=c+1;r<n;r++){
+      const f=A[r][c]/A[c][c];
+      for(let k=c;k<n;k++)A[r][k]-=f*A[c][k];
+      b[r]-=f*b[c];
+    }
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){
+    x[i]=b[i];
+    for(let j=i+1;j<n;j++)x[i]-=A[i][j]*x[j];
+    if(Math.abs(A[i][i])<1e-14)return null;
+    x[i]/=A[i][i];
+  }
+  return x;
+}
+
+function evalExpr(str,vars){
+  // substitute known variable names then eval
+  let e=str.trim();
+  // sort by length desc to avoid partial replacements
+  const names=Object.keys(vars).sort((a,b)=>b.length-a.length);
+  for(const nm of names){
+    const re=new RegExp('\\b'+nm.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','g');
+    e=e.replace(re,String(vars[nm]));
+  }
+  // remove unit suffix that might remain
+  e=e.replace(/[VvAaΩω](?=[^a-zA-Z]|$)/g,'');
+  try{const r=Function('"use strict";return('+e+')')();return(typeof r==='number'&&isFinite(r))?r:null;}
+  catch{return null;}
+}
+
+function runMNA(){
+  // ── 1. Union-Find on wires ───────────────────────────────────────────────
+  const uf={};
+  function find(k){
+    if(!uf[k])uf[k]=k;
+    if(uf[k]!==k)uf[k]=find(uf[k]);
+    return uf[k];
+  }
+  function union(k1,k2){const r1=find(k1),r2=find(k2);if(r1!==r2)uf[r1]=r2;}
+  const pk=(x,y)=>`${Math.round(x)},${Math.round(y)}`;
+
+  for(const l of lines)union(pk(l.x1,l.y1),pk(l.x2,l.y2));
+
+  // Point markers (G / N / I) are dropped anywhere on a wire without splitting it,
+  // so their key is not a line endpoint and would otherwise form an isolated net.
+  // Bind every component point that lies ON a wire into that wire's net.
+  // (Terminals already sitting at an endpoint just re-union with themselves — harmless.)
+  const bindPts=[];
+  for(const c of components){
+    if(LINE_SPLIT.includes(c.type))bindPts.push({x:c.x1,y:c.y1},{x:c.x2,y:c.y2});
+    else bindPts.push({x:c.cx,y:c.cy});
+  }
+  for(const p of bindPts)
+    for(const l of lines)
+      if(ptSegDist(p.x,p.y,l)<EPS)union(pk(p.x,p.y),pk(l.x1,l.y1));
+
+  // short-circuit mode: merge the component's two terminals
+  for(const c of components)
+    if(LINE_SPLIT.includes(c.type)&&c.mode==='short')union(pk(c.x1,c.y1),pk(c.x2,c.y2));
+
+  // ── 2. Ground ────────────────────────────────────────────────────────────
+  const gndComp=components.find(c=>c.type==='G');
+  if(!gndComp)return{error:'No ground node. Place a G component.'};
+  if(!lines.some(l=>ptSegDist(gndComp.cx,gndComp.cy,l)<EPS))
+    return{error:'Ground is not on a wire — place GND directly on a wire.'};
+  const gndRoot=find(pk(gndComp.cx,gndComp.cy));
+
+  // ── 3. Collect all points & assign node indices ──────────────────────────
+  const allPts=new Set();
+  for(const l of lines){allPts.add(pk(l.x1,l.y1));allPts.add(pk(l.x2,l.y2));}
+  for(const c of components){
+    if(LINE_SPLIT.includes(c.type)){allPts.add(pk(c.x1,c.y1));allPts.add(pk(c.x2,c.y2));}
+    else allPts.add(pk(c.cx,c.cy));
+  }
+  const rootToIdx={[gndRoot]:0};let ni=1;
+  for(const p of allPts){const r=find(p);if(r!==gndRoot&&rootToIdx[r]===undefined)rootToIdx[r]=ni++;}
+  // ni counted ground as index 0, so non-ground nodes are 1..ni-1.
+  // Nn must be that COUNT (ni-1); using ni left one all-zero row/col in A → always singular.
+  const Nn=ni-1; // number of non-ground nodes
+  const nodeOf=(x,y)=>{const r=find(pk(x,y));return rootToIdx[r]!==undefined?rootToIdx[r]:-1;};
+
+  // Validate all active component terminals are in the network
+  for(const c of components){
+    if(!LINE_SPLIT.includes(c.type)||c.mode==='open'||c.mode==='short')continue;
+    if(nodeOf(c.x1,c.y1)===-1||nodeOf(c.x2,c.y2)===-1)
+      return{error:`Component ${c.name}: terminal not connected to any wire.`};
+  }
+
+  // ── 4. Identify V-type sources (need extra current variables) ─────────────
+  const vSrcs=[]; // {comp, plus, minus, val}
+  for(const c of components){
+    if(c.mode==='open'||c.mode==='short')continue;
+    const isVsrc=(c.type==='S'&&c.subtype!=='I');
+    const isDepV=(c.type==='D'&&(c.subtype==='VCVS'||c.subtype==='CCVS'));
+    if(!isVsrc&&!isDepV)continue;
+    const plus=c.polarity>0?nodeOf(c.x2,c.y2):nodeOf(c.x1,c.y1);
+    const minus=c.polarity>0?nodeOf(c.x1,c.y1):nodeOf(c.x2,c.y2);
+    if(plus===-1||minus===-1)return{error:`Source ${c.name}: terminal not on any wire.`};
+    let val=null;
+    if(isVsrc){val=parseVal(c.value);if(typeof val==='string'||val===null)return{error:`Source ${c.name} needs a numeric voltage value.`};}
+    vSrcs.push({comp:c,plus,minus,val,idx:vSrcs.length});
+  }
+
+  // ── 5. Build MNA matrix ──────────────────────────────────────────────────
+  const K=vSrcs.length,M=Nn+K;
+  if(M===0)return{error:'No nodes to analyze.'};
+  const A=Array.from({length:M},()=>new Array(M).fill(0));
+  const b=new Array(M).fill(0);
+
+  const row=n=>n>0?n-1:-1; // matrix row/col for node n (0=ground→skip)
+  function stampG(na,nb,g){
+    if(na>0)A[na-1][na-1]+=g;
+    if(nb>0)A[nb-1][nb-1]+=g;
+    if(na>0&&nb>0){A[na-1][nb-1]-=g;A[nb-1][na-1]-=g;}
+  }
+  function stampI(na,nb,cur){ // cur flows na→nb (leaves na, enters nb)
+    if(na>0)b[na-1]-=cur;
+    if(nb>0)b[nb-1]+=cur;
+  }
+
+  const compByName={};for(const c of components)if(c.name)compByName[c.name]=c;
+  const vsIdxOf=comp=>vSrcs.findIndex(v=>v.comp.id===comp.id);
+  function parseCtrl(s){
+    if(!s)return null;
+    const vm=s.match(/^V\((.+)\)$/);if(vm)return{type:'V',name:vm[1]};
+    const im=s.match(/^I\((.+)\)$/);if(im)return{type:'I',name:im[1]};
+    return null;
+  }
+
+  for(const c of components){
+    if(c.mode==='open'||c.mode==='short')continue;
+
+    if(c.type==='R'){
+      const v=parseVal(c.value);
+      if(typeof v==='string')return{error:`Resistor ${c.name}: value "${c.value}" is not numeric.`};
+      if(v===null)return{error:`Resistor ${c.name}: no value set.`};
+      if(v===0)return{error:`Resistor ${c.name}: zero resistance — use short circuit mode instead.`};
+      stampG(nodeOf(c.x1,c.y1),nodeOf(c.x2,c.y2),1/v);
+    }
+
+    else if(c.type==='S'&&c.subtype==='I'){
+      const v=parseVal(c.value);
+      if(v===null||typeof v==='string')continue; // treat empty I source as 0A
+      const from=c.polarity>0?nodeOf(c.x1,c.y1):nodeOf(c.x2,c.y2);
+      const to  =c.polarity>0?nodeOf(c.x2,c.y2):nodeOf(c.x1,c.y1);
+      stampI(from,to,v);
+    }
+
+    else if(c.type==='S'&&c.subtype!=='I'){
+      // Independent V source
+      const vs=vSrcs.find(v=>v.comp.id===c.id);if(!vs)continue;
+      const col=Nn+vs.idx,{plus,minus}=vs;
+      if(plus>0){A[plus-1][col]+=1;A[col][plus-1]+=1;}
+      if(minus>0){A[minus-1][col]-=1;A[col][minus-1]-=1;}
+      b[col]=vs.val;
+    }
+
+    else if(c.type==='D'){
+      const gain=parseVal(c.value);
+      if(typeof gain==='string'||gain===null)return{error:`Dep. source ${c.name}: gain must be numeric.`};
+      const ctrl=parseCtrl(c.ctrl);
+      if(!ctrl)return{error:`Dep. source ${c.name}: no controlling variable set (right-dbl to edit).`};
+      const plus=c.polarity>0?nodeOf(c.x2,c.y2):nodeOf(c.x1,c.y1);
+      const minus=c.polarity>0?nodeOf(c.x1,c.y1):nodeOf(c.x2,c.y2);
+      const sub=c.subtype||'VCVS';
+
+      if(sub==='VCVS'){
+        const ctrlC=compByName[ctrl.name];
+        if(!ctrlC||ctrlC.type!=='N'&&ctrlC.type!=='G')return{error:`VCVS ${c.name}: ctrl "${ctrl.name}" must be a named N or G node.`};
+        const ctrlN=ctrlC.type==='G'?0:nodeOf(ctrlC.cx,ctrlC.cy);
+        const vs=vSrcs.find(v=>v.comp.id===c.id);const col=Nn+vs.idx;
+        if(plus>0){A[plus-1][col]+=1;A[col][plus-1]+=1;}
+        if(minus>0){A[minus-1][col]-=1;A[col][minus-1]-=1;}
+        if(ctrlN>0)A[col][ctrlN-1]-=gain; // V(out+)-V(out-)=gain*V(ctrl)
+      }
+      else if(sub==='VCCS'){
+        const ctrlC=compByName[ctrl.name];
+        if(!ctrlC||ctrlC.type!=='N'&&ctrlC.type!=='G')return{error:`VCCS ${c.name}: ctrl must be a named N node.`};
+        const ctrlN=ctrlC.type==='G'?0:nodeOf(ctrlC.cx,ctrlC.cy);
+        if(plus>0&&ctrlN>0)A[plus-1][ctrlN-1]+=gain;
+        if(minus>0&&ctrlN>0)A[minus-1][ctrlN-1]-=gain;
+      }
+      else if(sub==='CCVS'){
+        const ctrlC=compByName[ctrl.name];
+        if(!ctrlC)return{error:`CCVS ${c.name}: component "${ctrl.name}" not found.`};
+        const vs=vSrcs.find(v=>v.comp.id===c.id);const col=Nn+vs.idx;
+        if(plus>0){A[plus-1][col]+=1;A[col][plus-1]+=1;}
+        if(minus>0){A[minus-1][col]-=1;A[col][minus-1]-=1;}
+        if(ctrlC.type==='S'&&ctrlC.subtype!=='I'){
+          const cvIdx=vsIdxOf(ctrlC);
+          if(cvIdx===-1)return{error:`CCVS ${c.name}: ctrl source not in v-sources.`};
+          A[col][Nn+cvIdx]-=gain;
+        } else if(ctrlC.type==='R'){
+          const rv=parseVal(ctrlC.value);if(!rv)return{error:`CCVS ${c.name}: ctrl R has no value.`};
+          const ra=nodeOf(ctrlC.x1,ctrlC.y1),rb=nodeOf(ctrlC.x2,ctrlC.y2);
+          if(ra>0)A[col][ra-1]-=gain/rv;if(rb>0)A[col][rb-1]+=gain/rv;
+        } else return{error:`CCVS ${c.name}: unsupported ctrl type.`};
+      }
+      else if(sub==='CCCS'){
+        const ctrlC=compByName[ctrl.name];
+        if(!ctrlC)return{error:`CCCS ${c.name}: component "${ctrl.name}" not found.`};
+        if(ctrlC.type==='S'&&ctrlC.subtype!=='I'){
+          const cvIdx=vsIdxOf(ctrlC);
+          if(cvIdx===-1)return{error:`CCCS ${c.name}: ctrl source not in v-sources.`};
+          if(plus>0)A[plus-1][Nn+cvIdx]+=gain;
+          if(minus>0)A[minus-1][Nn+cvIdx]-=gain;
+        } else if(ctrlC.type==='R'){
+          const rv=parseVal(ctrlC.value);if(!rv)return{error:`CCCS ${c.name}: ctrl R has no value.`};
+          const ra=nodeOf(ctrlC.x1,ctrlC.y1),rb=nodeOf(ctrlC.x2,ctrlC.y2);
+          if(plus>0&&ra>0)A[plus-1][ra-1]+=gain/rv;
+          if(plus>0&&rb>0)A[plus-1][rb-1]-=gain/rv;
+          if(minus>0&&ra>0)A[minus-1][ra-1]-=gain/rv;
+          if(minus>0&&rb>0)A[minus-1][rb-1]+=gain/rv;
+        } else return{error:`CCCS ${c.name}: unsupported ctrl type.`};
+      }
+    }
+  }
+
+  // ── 6. Solve ─────────────────────────────────────────────────────────────
+  const x=gaussElim(A,b);
+  if(!x)return{error:'Singular matrix — circuit may be contradictory, floating, or missing ground on a sub-circuit.'};
+
+  const nodeV=n=>n===0?0:(n>0&&n<=Nn?x[n-1]:null);
+
+  // ── 7. Compute branch currents ────────────────────────────────────────────
+  const branchI={}; // compName → current (reference direction: x1→x2)
+  for(const c of components){
+    if(c.type==='R'){
+      const v=parseVal(c.value);if(!v)continue;
+      const va=nodeV(nodeOf(c.x1,c.y1)),vb=nodeV(nodeOf(c.x2,c.y2));
+      if(va!==null&&vb!==null)branchI[c.name]=(va-vb)/v;
+    }
+    // Sources are reported in the GENERATOR convention: current OUT of the + terminal,
+    // so a source that is delivering power reads positive. The raw MNA variable
+    // x[Nn+vi] is the passive/SPICE convention (into +), hence the negation.
+    if(c.type==='S'&&c.subtype!=='I'){
+      const vi=vsIdxOf(c);if(vi>=0)branchI[c.name]=-x[Nn+vi];
+    }
+    if(c.type==='D'){
+      const vi=vsIdxOf(c);if(vi>=0)branchI[c.name]=-x[Nn+vi];
+    }
+    if(c.type==='S'&&c.subtype==='I'){
+      const v=parseVal(c.value);
+      if(typeof v==='number')branchI[c.name]=v;
+    }
+  }
+
+  // ── 8. Build solved-variable map for expression substitution ───────────────
+  const solved={}; // name→value (numeric)
+  for(const c of components){
+    if(c.type==='N'){
+      const v=nodeV(nodeOf(c.cx,c.cy));
+      if(v!==null&&c.name)solved[c.name]=v;
+    }
+    if(branchI[c.name]!==undefined&&c.name)solved['I('+c.name+')']=branchI[c.name];
+  }
+
+  // ── 9. Update component values (empty N and I, then expressions) ───────────
+  saveState();
+  const undecidable=[];
+  const markerI={}; // I-marker name → signed current, for the results panel
+  for(const c of components){
+    if(c.type==='N'){
+      const v=nodeV(nodeOf(c.cx,c.cy));
+      if(v!==null)c.value=fmtV(v);
+      else undecidable.push(c.name+' (node)');
+    }
+    if(c.type==='I'){
+      // Find nearest R/S/D component to assign current
+      let best=null,bd=Infinity;
+      for(const oc of components){
+        if(!LINE_SPLIT.includes(oc.type))continue;
+        const d=Math.hypot(oc.cx-c.cx,oc.cy-c.cy);
+        if(d<bd){bd=d;best=oc;}
+      }
+      if(best&&branchI[best.name]!==undefined){
+        // sign: align with marker angle vs component angle
+        const da=best.angle;
+        const aligned=Math.cos(c.angle-da)>=0;
+        const iv=aligned?branchI[best.name]:-branchI[best.name];
+        markerI[c.name]={i:iv,src:best.name};
+        c.value=fmtA(iv);
+      } else undecidable.push(c.name+' (current)');
+    }
+  }
+  // Evaluate any expression-based values in R/S/D using solved vars
+  for(const c of components){
+    if(!['R','S','D'].includes(c.type))continue;
+    if(!c.value||typeof parseVal(c.value)==='number')continue; // skip if numeric
+    const r=evalExpr(c.value,solved);
+    if(r!==null)c.value=String(r); // update with evaluated expression
+  }
+
+  render();
+  return{nodeV,branchI,nodeOf,vSrcs,Nn,x,undecidable,compByName,markerI};
+}
+
+function showResult(res,isErr){
+  const panel=document.getElementById('result-panel');
+  const body=document.getElementById('result-body');
+  panel.className='';
+  if(isErr){panel.className='err';body.innerHTML=`<span class="rerr">ERROR: ${res}</span>`;panel.style.display='block';return;}
+
+  const{nodeV,branchI,vSrcs,Nn,x,undecidable,markerI}=res;
+  // Key badge carries the element's assigned palette color, matching its canvas label
+  const kb=c=>`class="rk kb" style="background:${compColor(c).hex}"`;
+  let html='';
+
+  // Placed current markers — shown first, since they are what the user asked for
+  const iList=components.filter(c=>c.type==='I'&&markerI&&markerI[c.name]!==undefined);
+  if(iList.length){
+    html+='<div class="rsec">Marked Currents (arrow direction)</div>';
+    for(const c of iList)
+      html+=`<span class="rv"><span ${kb(c)}>${c.name}</span> ${fmtAF(markerI[c.name].i)}<span class="rsub"> @${markerI[c.name].src}</span></span>`;
+  }
+
+  // Node voltages (named nodes)
+  const namedN=components.filter(c=>c.type==='N'||c.type==='G');
+  if(namedN.length){
+    html+='<div class="rsec">Node Voltages</div>';
+    for(const c of namedN){
+      const ni=c.type==='G'?0:res.nodeOf(c.cx,c.cy);
+      const v=nodeV(ni);
+      html+=`<span class="rv"><span ${kb(c)}>${c.name}</span> ${v!==null?fmtVF(v):'?'}</span>`;
+    }
+  }
+
+  // V-source currents
+  if(vSrcs.length){
+    html+='<div class="rsec">Branch Currents (sources — out of + terminal)</div>';
+    for(const vs of vSrcs){
+      // branchI already holds the generator-convention value (delivering ⇒ positive)
+      html+=`<span class="rv"><span ${kb(vs.comp)}>I(${vs.comp.name})</span> ${fmtAF(branchI[vs.comp.name])}</span>`;
+    }
+  }
+
+  // Resistor currents
+  const rList=components.filter(c=>c.type==='R'&&branchI[c.name]!==undefined);
+  if(rList.length){
+    html+='<div class="rsec">Resistor Currents (x1→x2)</div>';
+    for(const c of rList)html+=`<span class="rv"><span ${kb(c)}>I(${c.name})</span> ${fmtAF(branchI[c.name])}</span>`;
+  }
+
+  if(undecidable.length)html+=`<div class="rsec" style="color:#c07000">Undecidable: ${undecidable.join(', ')}</div>`;
+
+  body.innerHTML=html||'<span style="color:#888">Solved (no named nodes — place N nodes to see voltages)</span>';
+  panel.style.display='block';
+}
+
+function calculateCircuit(){
+  try{
+    const res=runMNA();
+    if(res.error)showResult(res.error,true);
+    else showResult(res);
+  }catch(e){showResult(e.message,true);}
+}
+
+document.getElementById('calc-btn').addEventListener('click',calculateCircuit);
+document.getElementById('result-close').addEventListener('click',()=>{document.getElementById('result-panel').style.display='none';});
+
+setMode('select');
+</script>
+</body>
+</html>
