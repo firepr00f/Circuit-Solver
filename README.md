@@ -1,7 +1,7 @@
 # Circuit Solver
 
 A web-based circuit analysis tool for students — built for textbook problems that don't come with answers or worked solutions. Solves symbolic circuit problems using nodal analysis, mesh analysis, and dependent sources.
-![beta run](solver_gif.gif)
+![beta run](sg_gif.gif)
 Designed around how students actually sketch circuits on paper: draw lines first, then place components on them, with everything happening directly on the canvas (no sidebar, no drag-and-drop component palette).
 
 > **⚠️ Status: work in progress, incomplete.** Currently at Phase 2 (component placement) of the build roadmap below. The solver backend (nodal/mesh analysis, symbolic math) is not yet implemented.
